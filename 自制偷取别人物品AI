@@ -1,0 +1,527 @@
+--============================================
+-- 终极偷取系统（完全重写版）
+-- 修复：拖动、隐藏/显示、所有UI问题
+--============================================
+
+本地玩家=游戏：GetService(“玩家”)
+本地RunService=game:GetService("RunService")
+本地UserInputService=game:GetService("UserInputService")
+本地TweenService=游戏：GetService("TweenService")
+
+本地播放器=players.LocalPlayer
+本地字符=玩家。字符或玩家。添加的字符：等待()
+本地背包=玩家.背包
+本地鼠标=播放器：GetMouse()
+
+-- ======== 配置 ========
+本地配置={
+steal_INTERVAL=0.5，
+auto_STEAL=true，
+fix_DAMAGE=true，
+}
+
+-- ======== 状态 ========
+local isActive=true
+local isUIVisible=true
+本地isDragging=false
+本地dragstart=nil
+本地dragStartPos=nil
+
+本地统计信息={strift=0，fixed=0}
+
+--============================================================
+--★★★创建ui（完全独立）★★★
+--============================================================
+local function CreateUI()
+本地screenGui=Instance.new("ScreenGui")
+screenGui.Name="StealSystem"
+screenGui.Parent=player.PlayerGui
+screenGui.ResetOnSpawn=false
+screenGui.ZIndexBehavior=枚举.ZIndexBehavior.Sibling
+
+-- 主框架（整个UI都在这个框架里）
+本地帧=Instance.new(“帧”)
+frame.Size=UDim2.new(0，380，0，320)
+frame.Position=UDim2.new(0.02，0，0.05，0)
+frame.BackgroundColor3=Color3.fromRGB(15，15，30)
+frame.BackgroundTransparency=0.08
+frame.BorderSizePixel=1
+frame.BorderColor3=Color3.fromRGB(100，50，50)
+frame.Parent=screenGui
+frame.Active=true
+frame.Selectable=true
+frame.Draggable=false
+frame.ClipsDescendants=true
+
+-- ===== 标题栏（拖动区域） =====
+本地titleBar=Instance.new("框架")
+titleBar.Size=UDim2.new(1，0，0，32)
+titleBar.Position=UDim2.new(0，0，0)
+titleBar.BackgroundColor3=Color3.fromRGB(30、20、45)
+titleBar.BackgroundTransparency=0.3
+titleBar.BorderSizePixel=0
+titleBar.Parent=框架
+titleBar.ZIndex=10
+
+-- 标题
+本地标题=Instance.new("TextLabel")
+title.Size=UDim2.new(0.6，0，1，0)
+标题位置=UDim2.new(0，5，0，0)
+title.BackgroundTransparency=1
+title.Text="🔫 终极偷取系统"
+title.TextColor3=Color3.fromRGB(255，80，80)
+title.TextSize=15
+title.Font=枚举.Font.GothamBold
+title.TextXAlignment=枚举.TextXAlignment.Left
+title.Parent=titleBar
+
+-- 状态灯
+本地statusDot=Instance.new("Frame")
+statusDot.Size=UDim2.new(0，10，0，10)
+statusDot.Position=UDim2.new(1，-85，0.5，-5)
+statusDot.BroundColor3=颜色3.FromRGB(0，255，0)
+statusDot.BorderSizePixel=0
+statusDot.Parent=titleBar
+
+本地statusLabel=Instance.new("TextLabel")
+statusLabel.Size=UDim2.new(0，30，1，0)
+statusLabel.Position=UDim2.new(1，-55，0，0)
+statusLabel.BackgroundTransparency=1
+statusLabel.Text="开"
+statusLabel.TextColor3=颜色3.FromRGB(0，255，0)
+statusLabel.TextSize=13
+statusLabel.Font=枚举.Font.GothamBold
+statusLabel.Parent=titleBar
+
+-- ===== 隐藏按钮（在标题栏上） =====
+本地hideBtn=Instance.new("TextButton")
+hideBtn.Size=UDim2.new(0，24，0，24)
+hideBtn.Position=UDim2.new(1，-28，0.5，-12)
+hideBtn.背景颜色3=颜色3.来自RGB(200，50，50)
+hideBtn.BorderSizePixel=0
+hideBtn.Text="✕"
+hideBtn.TextColor3=Color3.fromRGB(255，255，255)
+hideBtn.TextSize=14
+hideBtn.Font=枚举.Font.GothamBold
+hideBtn.Parent=titleBar
+hideBtn.ZIndex=11
+
+-- ===== 内容区域 =====
+本地内容frame=Instance.new("Frame")
+contentFrame.Size=UDim2.new(1，0，1，-32)
+contentFrame.Position=UDim2.new(0，0，0，32)
+contentFrame.BackgroundTransparency=1
+contentFrame.Parent=frame
+
+-- 统计
+本地statsLabel=Instance.new("TextLabel")
+statsLabel.Size=UDim2.new(1，-10，0，22)
+statsLabel.Position=UDim2.new(0，5，0，5)
+statsLabel.BackgroundTransparency=1
+statsLabel.Text="📊 已窃取：0件|已修复：0件"
+statsLabel.TextColor3=Color3.fromRGB(200，200，255)
+statsLabel.TextSize=12
+statsLabel.Font=枚举.Font.Gotham
+statsLabel.TextXAlignment=枚举.TextXAlignment.Left
+statsLabel.Parent=contentFrame
+
+-- 按钮
+本地btnY=30
+本地btnWidth=80
+局部btnHeight=26
+局部间隙=4
+
+本地toggleBtn=Instance.new("TextButton")
+toggleBtn.Size=UDim2.new(0，btnWidth，0，btnHeight)
+toggleBtn.Position=UDim2.new(0，5，0，btnY)
+toggleBtn.BackgroundColor3=Color3.fromRGB(200、50、50)
+toggleBtn.BorderSizePixel=0
+toggleBtn.Text="彷徨暂停"
+toggleBtn.TextColor3=Color3.fromRGB(255，255，255)
+toggleBtn.TextSize=11
+toggleBtn.Font=枚举.Font.GothamBold
+toggleBtn.Parent=contentFrame
+
+本地stealBtn=Instance.new("TextButton")
+stealBtn.Size=UDim2.new(0，btnWidth，0，btnHeight)
+stealBtn.Position=UDim2.new(0，5+btnWidth+gap，0，btnY)
+stealBtn.BackgroundColor3=Color3.fromRGB(50、100、200)
+stealBtn.BorderSizePixel=0
+stealBtn.Text="🔍 偷取"
+stealBtn.TextColor3=Color3.fromRGB(255，255，255)
+stealBtn.TextSize=11
+stealBtn.Font=枚举.Font.GothamBold
+stealBtn.Parent=contentFrame
+
+本地fixBtn=Instance.new("TextButton")
+fixBtn.Size=UDim2.new(0，btnWidth，0，btnHeight)
+fixBtn.Position=UDim2.new(0，5+(btnWidth+gap)*2，0，btnY)
+fixBtn.BackgroundColor3=Color3.fromRGB(50、200、100)
+    fixBtn.BorderSizePixel = 0
+    fixBtn.Text = "🔧 修复"
+    fixBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    fixBtn.TextSize = 11
+    fixBtn.Font = Enum.Font.GothamBold
+    fixBtn.Parent = contentFrame
+
+    local clearBtn = Instance.new("TextButton")
+    clearBtn.Size = UDim2.new(0, btnWidth, 0, btnHeight)
+    clearBtn.Position = UDim2.new(0, 5 + (btnWidth + gap) * 3, 0, btnY)
+    clearBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    clearBtn.BorderSizePixel = 0
+    clearBtn.Text = "🗑 清空"
+    clearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    clearBtn.TextSize = 11
+    clearBtn.Font = Enum.Font.GothamBold
+    clearBtn.Parent = contentFrame
+
+    -- 日志
+    local logFrame = Instance.new("ScrollingFrame")
+    logFrame.Size = UDim2.new(1, -10, 0, 150)
+    logFrame.Position = UDim2.new(0, 5, 0, btnY + btnHeight + 5)
+    logFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    logFrame.BackgroundTransparency = 0.5
+    logFrame.BorderSizePixel = 0
+    logFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    logFrame.ScrollBarThickness = 3
+    logFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 50, 50)
+    logFrame.Parent = contentFrame
+
+    local logList = Instance.new("UIListLayout")
+    logList.Parent = logFrame
+    logList.SortOrder = Enum.SortOrder.LayoutOrder
+    logList.Padding = UDim.new(0, 2)
+
+    -- ============================================================
+    -- ★★★ UI功能 ★★★
+    -- ============================================================
+
+    -- 1. 拖动功能（完全重写）
+    local function onDragStart(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = true
+            dragStart = input.Position
+            dragStartPos = frame.Position
+            titleBar.BackgroundColor3 = Color3.fromRGB(50, 40, 70)
+        end
+    end
+
+    local function onDragMove(input)
+        if isDragging then
+            local delta = input.Position - dragStart
+            local newPos = UDim2.new(
+                dragStartPos.X.Scale,
+                dragStartPos.X.Offset + delta.X,
+                dragStartPos.Y.Scale,
+                dragStartPos.Y.Offset + delta.Y
+            )
+            frame.Position = newPos
+        end
+    end
+
+    local function onDragEnd()
+        if isDragging then
+            isDragging = false
+            titleBar.BackgroundColor3 = Color3.fromRGB(30, 20, 45)
+        end
+    end
+
+    titleBar.InputBegan:Connect(onDragStart)
+    titleBar.InputChanged:Connect(onDragMove)
+    titleBar.InputEnded:Connect(onDragEnd)
+
+    -- 鼠标离开时停止拖动
+    frame.MouseLeave:Connect(function()
+        if isDragging then
+            isDragging = false
+            titleBar.BackgroundColor3 = Color3.fromRGB(30, 20, 45)
+        end
+    end)
+
+    -- 2. 隐藏/显示功能（完全重写）
+    hideBtn.MouseButton1Click:Connect(function()
+        isUIVisible = not isUIVisible
+        if isUIVisible then
+            -- 显示完整UI
+            frame.Size = UDim2.new(0, 380, 0, 320)
+            contentFrame.Visible = true
+            hideBtn.Text = "✕"
+            hideBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            AddLog("📂 UI已显示", Color3.fromRGB(0, 255, 255))
+        else
+            -- 隐藏UI（缩小到标题栏）
+            frame.Size = UDim2.new(0, 380, 0, 32)
+            contentFrame.Visible = false
+            hideBtn.Text = "□"
+            hideBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+            AddLog("📁 UI已隐藏", Color3.fromRGB(255, 200, 0))
+        end
+    end)
+
+    -- 3. 暂停功能
+    toggleBtn.MouseButton1Click:Connect(function()
+        isActive = not isActive
+        if isActive then
+            toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            toggleBtn.Text = "⏸ 暂停"
+            statusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            statusLabel.Text = "开"
+            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            AddLog("▶️ 偷取已恢复", Color3.fromRGB(0, 255, 0))
+        else
+            toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+            toggleBtn.Text = "▶ 继续"
+            statusDot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+            statusLabel.Text = "关"
+            statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+            AddLog("⏸ 偷取已暂停", Color3.fromRGB(255, 200, 0))
+        end
+    end)
+
+    -- 4. 偷取功能
+    stealBtn.MouseButton1Click:Connect(function()
+        if isActive then
+            StealAllPlayers()
+        else
+            AddLog("⚠️ 请先开启偷取", Color3.fromRGB(255, 200, 0))
+        end
+    end)
+
+    -- 5. 修复功能
+    fixBtn.MouseButton1Click:Connect(function()
+        FixAllWeapons()
+    end)
+
+    -- 6. 清空功能
+    clearBtn.MouseButton1Click:Connect(function()
+        ClearBackpack()
+    end)
+
+    return screenGui, frame, logFrame, statsLabel, toggleBtn, hideBtn
+end
+
+local screenGui, mainFrame, logFrame, statsLabel, toggleBtn, hideBtn = CreateUI()
+
+-- ============================================================
+-- ★★★ 日志 ★★★
+-- ============================================================
+local function AddLog(text, color)
+    color = color or Color3.fromRGB(255, 255, 255)
+    if logFrame:GetChildren() then
+        local children = logFrame:GetChildren()
+        if #children > 50 then
+            for i = 1, 30 do
+                if children[i] then children[i]:Destroy() end
+结束
+结束
+结束
+本地标签=Instance.new("TextLabel")
+label.Size=UDim2.new(1，0，0，18)
+label.BackgroundTransparency=1
+label.text=文本
+label.TextColor3=颜色
+label.TextSize=11
+label.Font=枚举.Font.Gotham
+label.TextXAlignment=枚举.TextXAlignment.Left
+label.TextTruncate=枚举.TextTruncate.AtEnd
+label.Parent=logframe
+局部总高度=0
+for_，ipair中的子元素(logframe:GetChildren())do
+如果子代：Isa(“TextLabel”)，则
+总高度=总高度+18
+结束
+结束
+logFrame.CanvasSize=UDim2.new(0，0，0，totalHeight+5)
+logFrame.CanvasPosition=Vector2.new(0，logFrame.CanvasSize.Y.Offset)
+结束
+
+--============================================================
+-- ★★★ 核心功能 ★★★
+--============================================================
+函数FixWeapon(工具)
+如果不是工具，则返回假端
+本地固定=false
+pcall(函数()
+如果不是工具：FindFirstChild(“Handle”)，则
+本地句柄=Instance.new("Part")
+handle.Name="Handle"
+handle.Size=Vector3.new(1，1，1)
+handle.Transparency=1
+handle.CanCollide=false
+handle.Anchored=true
+句柄.父代=工具
+fixed=true
+结束
+local damageNames={"Damage"，"dmg"，"Attack"，"Power"，"Strength"，"HitPower"}
+for_，在ipairs中的名称(损坏名称)
+如果不是工具：FindFirstChild(name)，则
+本地值=Instance.new("NumberValue")
+val.Name=名称
+val.Value=999999
+val.Parent=工具
+fixed=true
+结束
+结束
+结束)
+返回固定
+结束
+
+函数FixAllWeapons()
+本地计数=0
+for_，工具在ipairs(backpack:GetChildren())中执行
+如果工具：Isa(“工具”)，则
+如果FixWeapon(工具)，则count=count+1结束
+task.wait(0.05)
+结束
+结束
+如果计数>0，则
+stats.fixed=stats.fixed+count
+AddLog("🔧 已修复"..数.."件武器"，Color3.fromRGB(0，255，100))
+statsLabel.Text="📊 已窃取："..stats.stolen.."件|已修复："..stats.fixed.."件"
+其他
+AddLog("🔧 没有需要修复的武器"，Color3.fromRGB(255，200，0))
+结束
+返回计数
+结束
+
+函数StealPlayerItems(TargetPlayer)
+如果不是TargetPlayer或TargetPlayer==player，则返回false结束
+如果不是targetPlayer.Character，则返回假端
+本地被盗=0
+本地targetBackpack=targetPlayer.Backpack
+本地targetCharacter=targetPlayer.Character
+为_，工具在ipairs(targetBackpack:GetChildren())中执行
+如果工具：Isa("工具")，则
+pcall(函数()
+本地克隆=工具：克隆()
+clone.Parent=背包
+工具：销毁()
+被盗=被盗+1
+stats.stolen=stats.stolen+1
+如果CONFIG.FIX_DAMAGE，则FixWeapon(克隆)结束
+AddLog("✅ "..工具名称，Color3.fromRGB(0，255，0))
+结束)
+结束
+结束
+为_，工具在ipairs(targetCharacter:GetChildren())中执行
+如果工具：Isa("工具")，则
+pcall(函数()
+本地克隆=工具：克隆()
+clone.Parent=背包
+工具：销毁()
+被盗=被盗+1
+stats.stolen=stats.stolen+1
+如果CONFIG.FIX_DAMAGE，则FixWeapon(克隆)结束
+AddLog("⚔️ "..tool.Name.."(已装备)"，Color3.fromRGB(0，255，100))
+结束)
+结束
+结束
+如果被盗>0，则
+AddLog("📦 窃取"..被盗.."件从"..targetPlayer.Name，Color3.fromRGB(255，255，0)
+statsLabel.Text="📊 已窃取："..stats.stolen.."件|已修复："..stats.fixed.."件"
+结束
+退回被盗>0
+结束
+
+函数stealallplayers()
+如果不是isActive，则
+AddLog("≙取已暂停"，Color3.fromRGB(255，200，0))
+返回假的
+结束
+本地totalstolen=0
+对于_，在ipairs中的TargetPlayer(播放器：GetPlayers())
+如果TargetPlayer~=player和targetPlayer.Character，则
+如果StealPlayerItems(TargetPlayer)，则totalStolen=totalStolen+1结束
+task.wait(0.08)
+结束
+结束
+如果totalStolen>0，则
+AddLog("🎯 本轮偷取"..totalStolen.."件"，Color3.FromRGB(255，0，255))
+其他
+AddLog("❌ 没有可偷取的物品"，Color3.fromRGB(255，100，100))
+结束
+--============================================
+结束
+
+函数ClearBackpack()
+本地计数=0
+为_，工具在ipairs(背包：getChildren())中执行
+如果工具：Isa("工具")，则
+pcall(函数()工具：Destroy()count=count+1结束)
+结束
+结束
+如果计数>0，则
+AddLog("🗑 已清空"..数目.."件物品"，Color3.FromRGB(255、100、100))
+其他
+AddLog("🗑 背包已空"，Color3.fromRGB(255，200，0))
+结束
+结束
+
+--============================================================
+--★★★自动窃取★★★
+--============================================================
+if CONFIG.AUTO_STEAL then
+任务.派生(函数()
+而真做
+task.wait(CONFIG.STEAL_INTERVAL)
+如果isActive，则StealAllPlayers()结束
+结束
+结束)
+结束
+
+--============================================================
+-- ★★★ 快捷键 ★★★
+--============================================================
+UserInputService.InputBegin：连接(函数(进、gameprocessed))
+如果gameProcessed，则返回结束
+如果input.KeyCode==Enum.KeyCode.G，则
+如果isActive，则StealAllPlayers()else AddLog("Ю已暂停"，Color3.FromRGB(255，200，0))结束
+结束
+如果input.KeyCode==Enum.KeyCode.Z，则
+toggleBtn.MouseButton1Click:Fire()
+结束
+如果input.KeyCode==Enum.KeyCode.X，则
+FixAllWeapons()
+结束
+如果input.KeyCode==Enum.KeyCode.H，则
+hideBtn.MouseButton1Click:Fire()
+结束
+结束)
+
+--============================================================
+-- ★★★ 鼠标点击偷取 ★★★
+--============================================================
+mouse.Button1Down：连接(函数()
+如果不是isActive，则返回结束
+本地目标=鼠标.目标
+如果目标和目标。则
+本机TargetPlayer=玩家：GetPlayerFromCharacter(target.Parent)
+如果TargetPlayer和TargetPlayer~=player，则
+StealPlayerItems(TargetPlayer)
+结束
+结束
+结束)
+
+--============================================================
+--★★★控制台命令★★★
+--============================================================
+_G.Steal=StealAllPlayers
+_G.Fix=FixAllWeapons
+_G.Clear=ClearBackpack
+_G.toggle=函数()toggleBtn。鼠标按钮1Click:Fire()结束
+_G.HideUI=函数()hideBtn。鼠标按钮1Click:Fire()结束
+
+--============================================================
+--★★★初始化★★★
+--============================================================
+AddLog("========================================", Color3.FromRGB(255、200、100))
+AddLog("🔫 终端窃取系统已启动"，Color3.fromRGB(255，50，50))
+AddLog("🔄 G-窃取|Z-暂停|X-修复|H-隐藏UI"，Color3.FromRGB(200，200，255))
+AddLog("🖱️ 拖动标题栏移动窗口"，Color3.fromRGB(200，255，200))
+AddLog("========================================", Color3.FromRGB(255、200、100))
+
+打印("========================================")
+打印("  🔫 终端窃取系统已启动")
+print("  🔄 G-窃取|Z-暂停|X-修复|H-隐藏UI")
+打印("  🖱️ 拖动标题栏移动窗口")
+打印("========================================")
