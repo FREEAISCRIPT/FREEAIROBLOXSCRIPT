@@ -1,0 +1,52 @@
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+local jumpCount = 0
+
+local function doJump()
+    if humanoid.Health <= 0 then return end
+    local vel = rootPart.Velocity
+    if vel.Y < 0 then
+        rootPart.Velocity = Vector3.new(vel.X, 40, vel.Z)
+    else
+        rootPart.Velocity = Vector3.new(vel.X, 50, vel.Z)
+    end
+    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+end
+
+local function resetJump()
+    jumpCount = 0
+end
+
+humanoid.StateChanged:Connect(function(old, new)
+    if new == Enum.HumanoidStateType.Landed or new == Enum.HumanoidStateType.Freefall then
+        jumpCount = 0
+    end
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if humanoid.Health <= 0 then return end
+    doJump()
+end)
+
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.Space then
+        if humanoid.Health <= 0 then return end
+        doJump()
+    end
+end)
+
+local origJump = humanoid.Jump
+humanoid.Jump = true
+
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = character:WaitForChild("Humanoid")
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    jumpCount = 0
+end)
