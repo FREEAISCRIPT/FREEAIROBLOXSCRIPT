@@ -1,0 +1,310 @@
+-- ============================================================
+-- 武器改装工坊 · 完整版
+-- 功能：无限弹药 | 无需装弹 | 零散布 | 无后坐力 | 极速射速 | 自动开火
+-- 新增：可拖拽的隐藏按钮 | 实时状态提示 | 加载欢迎消息
+-- ============================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+-- ============================================================
+-- 配置表
+-- ============================================================
+local features = {
+    InfiniteAmmo = { enabled = false, label = "∞ 无限弹药", color = Color3.fromRGB(0, 200, 255) },
+    NoReload = { enabled = false, label = "⚡ 无需装弹", color = Color3.fromRGB(255, 200, 0) },
+    NoSpread = { enabled = false, label = "🎯 零散布", color = Color3.fromRGB(0, 255, 150) },
+    NoRecoil = { enabled = false, label = "📉 无后坐力", color = Color3.fromRGB(255, 100, 100) },
+    FastFire = { enabled = false, label = "🔥 极速射速", color = Color3.fromRGB(255, 150, 0) },
+    AutoFire = { enabled = false, label = "🤖 自动开火", color = Color3.fromRGB(150, 50, 255) },
+}
+
+-- ============================================================
+-- 核心修改函数
+-- ============================================================
+local function ApplyWeaponMods()
+    for i, v in next, getgc(true) do
+        if type(v) == "table" and rawget(v, "AmmoPerClip") then
+            if features.InfiniteAmmo.enabled then
+                v.AmmoPerClip = math.huge
+            end
+            if features.NoReload.enabled then
+                v.ReloadTime = 0
+            end
+            if features.NoSpread.enabled then
+                v.Spread = 0
+            end
+            if features.NoRecoil.enabled then
+                v.CameraShakingEnabled = false
+            end
+            if features.FastFire.enabled then
+                v.FireRate = 0
+            end
+            if features.AutoFire.enabled then
+                v.Auto = true
+            end
+        end
+    end
+end
+
+-- 持续监控
+local function StartMonitor()
+    RunService.Heartbeat:Connect(function()
+        local anyEnabled = false
+        for _, f in pairs(features) do
+            if f.enabled then
+                anyEnabled = true
+                break
+            end
+        end
+        if anyEnabled then
+            ApplyWeaponMods()
+        end
+    end)
+end
+
+-- ============================================================
+-- 消息提示系统
+-- ============================================================
+local function ShowMessage(text, color, duration)
+    duration = duration or 1.2
+    local gui = player:FindFirstChild("PlayerGui")
+    if not gui then return end
+
+    local msg = Instance.new("TextLabel")
+    msg.Size = UDim2.new(0, 400, 0, 40)
+    msg.Position = UDim2.new(0.5, -200, 0.85, 0)
+    msg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    msg.BackgroundTransparency = 0.3
+    msg.BorderSizePixel = 2
+    msg.BorderColor3 = color or Color3.fromRGB(255, 255, 255)
+    msg.Text = text
+    msg.TextColor3 = color or Color3.fromRGB(255, 255, 255)
+    msg.TextSize = 18
+    msg.Font = Enum.Font.GothamBold
+    msg.TextScaled = true
+    msg.ClipsDescendants = true
+    msg.Parent = gui
+
+    -- 圆角
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = msg
+
+    -- 入场动画（从下方滑入）
+    msg.Position = UDim2.new(0.5, -200, 0.9, 0)
+    msg.BackgroundTransparency = 0.8
+    TweenService:Create(msg, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        Position = UDim2.new(0.5, -200, 0.85, 0),
+        BackgroundTransparency = 0.3
+    }):Play()
+
+    -- 自动移除
+    task.spawn(function()
+        task.wait(duration)
+        TweenService:Create(msg, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Position = UDim2.new(0.5, -200, 0.9, 0),
+            BackgroundTransparency = 1
+        }):Play()
+        task.wait(0.3)
+        msg:Destroy()
+    end)
+end
+
+-- ============================================================
+-- 创建主UI和浮动按钮
+-- ============================================================
+local mainUIVisible = true
+
+local function CreateUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "WeaponWorkshop"
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    -- ===== 主面板 =====
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 280, 0, 360)
+    frame.Position = UDim2.new(0.01, 0, 0.05, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(15, 15, 30)
+    frame.BackgroundTransparency = 0.15
+    frame.BorderSizePixel = 2
+    frame.BorderColor3 = Color3.fromRGB(80, 80, 255)
+    frame.ClipsDescendants = true
+    frame.Parent = screenGui
+    frame.Active = true
+    frame.Draggable = true
+    frame.Name = "MainPanel"
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 36)
+    title.BackgroundColor3 = Color3.fromRGB(30, 20, 60)
+    title.BackgroundTransparency = 0.3
+    title.Text = "🔧 武器改装工坊"
+    title.TextColor3 = Color3.fromRGB(150, 200, 255)
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBold
+    title.Parent = frame
+
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size = UDim2.new(1, -10, 1, -50)
+    scroll.Position = UDim2.new(0, 5, 0, 40)
+    scroll.BackgroundTransparency = 1
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.ScrollBarThickness = 4
+    scroll.Parent = frame
+
+    local layout = Instance.new("UIListLayout")
+    layout.Parent = scroll
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 6)
+
+    -- 功能按钮
+    for key, f in pairs(features) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 0, 36)
+        btn.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+        btn.BackgroundTransparency = 0.2
+        btn.BorderSizePixel = 1
+        btn.BorderColor3 = Color3.fromRGB(60, 60, 100)
+        btn.Text = "◻  " .. f.label
+        btn.TextColor3 = Color3.fromRGB(200, 200, 255)
+        btn.TextSize = 14
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Font = Enum.Font.Gotham
+        btn.Parent = scroll
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        btnCorner.Parent = btn
+
+        btn.MouseEnter:Connect(function()
+            btn.BackgroundColor3 = Color3.fromRGB(50, 50, 80)
+        end)
+        btn.MouseLeave:Connect(function()
+            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+        end)
+
+        btn.MouseButton1Click:Connect(function()
+            f.enabled = not f.enabled
+            if f.enabled then
+                btn.Text = "☑  " .. f.label
+                btn.TextColor3 = f.color
+                btn.BorderColor3 = f.color
+                btn.BackgroundColor3 = Color3.fromRGB(40, 20, 60)
+                ShowMessage(f.label .. " ✅ 已开启", f.color)
+            else
+                btn.Text = "◻  " .. f.label
+                btn.TextColor3 = Color3.fromRGB(200, 200, 255)
+                btn.BorderColor3 = Color3.fromRGB(60, 60, 100)
+                btn.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+                ShowMessage(f.label .. " ❌ 已关闭", Color3.fromRGB(255, 100, 100))
+            end
+            ApplyWeaponMods()
+        end)
+
+        local dot = Instance.new("Frame")
+        dot.Size = UDim2.new(0, 10, 0, 10)
+        dot.Position = UDim2.new(1, -18, 0.5, -5)
+        dot.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        dot.BorderSizePixel = 0
+        dot.Parent = btn
+        local dotCorner = Instance.new("UICorner")
+        dotCorner.CornerRadius = UDim.new(1, 0)
+        dotCorner.Parent = dot
+
+        local function updateDot()
+            if f.enabled then
+                dot.BackgroundColor3 = f.color
+            else
+                dot.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            end
+        end
+        btn.MouseButton1Click:Connect(updateDot)
+        updateDot()
+    end
+
+    local footer = Instance.new("TextLabel")
+    footer.Size = UDim2.new(1, 0, 0, 22)
+    footer.BackgroundTransparency = 1
+    footer.Text = "✨ 点击开关实时生效 · 支持拖拽移动"
+    footer.TextColor3 = Color3.fromRGB(150, 150, 200)
+    footer.TextSize = 11
+    footer.Font = Enum.Font.Gotham
+    footer.Parent = scroll
+
+    local function updateScroll()
+        local totalHeight = 0
+        for _, child in ipairs(scroll:GetChildren()) do
+            if child:IsA("TextButton") or child:IsA("TextLabel") then
+                totalHeight = totalHeight + child.Size.Y.Offset + 6
+            end
+        end
+        scroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 20)
+    end
+    task.wait(0.1)
+    updateScroll()
+    scroll.ChildAdded:Connect(updateScroll)
+
+    -- ===== 浮动控制按钮（可拖拽） =====
+    local floatBtn = Instance.new("ImageButton")
+    floatBtn.Size = UDim2.new(0, 48, 0, 48)
+    floatBtn.Position = UDim2.new(0.01, 0, 0.5, -24)
+    floatBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 255)
+    floatBtn.BorderSizePixel = 2
+    floatBtn.BorderColor3 = Color3.fromRGB(150, 150, 255)
+    floatBtn.Image = "rbxassetid://10706933024" -- 齿轮图标（可替换）
+    floatBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    floatBtn.ScaleType = Enum.ScaleType.Fit
+    floatBtn.Parent = screenGui
+    floatBtn.Name = "FloatButton"
+    floatBtn.Active = true
+    floatBtn.Draggable = true
+    floatBtn.ClipsDescendants = true
+
+    -- 圆角
+    local floatCorner = Instance.new("UICorner")
+    floatCorner.CornerRadius = UDim.new(1, 0)
+    floatCorner.Parent = floatBtn
+
+    -- 点击切换主UI可见性
+    floatBtn.MouseButton1Click:Connect(function()
+        mainUIVisible = not mainUIVisible
+        frame.Visible = mainUIVisible
+        if mainUIVisible then
+            ShowMessage("📂 主界面已显示", Color3.fromRGB(100, 200, 255))
+            floatBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 255)
+        else
+            ShowMessage("📁 主界面已隐藏", Color3.fromRGB(255, 200, 100))
+            floatBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        end
+    end)
+
+    return screenGui, frame
+end
+
+-- ============================================================
+-- 初始化
+-- ============================================================
+local function Init()
+    if not character or not character.Parent then
+        character = player.Character or player.CharacterAdded:Wait()
+    end
+    CreateUI()
+    StartMonitor()
+    -- 显示欢迎消息
+    ShowMessage("🎉 恭喜你加载强力改枪械数值脚本！", Color3.fromRGB(255, 200, 50), 2.5)
+    print("🔧 武器改装工坊已加载")
+end
+
+pcall(Init)
